@@ -161,13 +161,19 @@ df.paint_color.mode()
 
 df.paint_color.value_counts().plot(kind='bar')
 
+# fill null values with mode for categorical data 
+def fill_nan_with_mode(dataframe, column_name):
+    return dataframe[column_name].fillna(dataframe[column_name].value_counts().index[0])
+cat_variables = ['fuel', 'manufacturer', 'title_status', 'transmission', 'model']
+for var in cat_variables:
+    df[var] = fill_nan_with_mode(df, var)
 
-
-
-
-
-
-
-
-
+# fill nan in lat and long variables
+df.long.hist(bins=50)
+df.lat.hist(bins=50)
+df.long = df.long.fillna(df.long.median())
+df.lat = df.lat.fillna(df.lat.mean())
+# fill na in age column with median
+df.age.hist()
+df.age = df.age.fillna(df.age.median())
 
