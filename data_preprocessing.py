@@ -2,6 +2,8 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import re
+from datetime import datetime
+import seaborn as sns
 
 # read the data
 path = 'vehicles.csv'
@@ -20,12 +22,7 @@ df.info()
 df.describe()
 
 # null values in dataframe
-df.isnull().sum() / df.shape[0] * 100
-
-# drop useless columns
-df.drop_duplicates(inplace=True)
-df.drop(['county', 'url', 'region_url', 'VIN', 'size', 'image_url'], axis=1, inplace=True)
-df.shape
+df.isnull().sum() / df.shape[0]
 
 # display distinct values for categorical features
 object_columns = ['manufacturer', 'condition', 'fuel', 'title_status',
@@ -71,6 +68,9 @@ for label, pct_label in zip(texts, autotexts):
         label.set_text('')
         pct_label.set_text('')
 ax.legend(bbox_to_anchor = (1.2, 1))
+ax.set_title('condition', {'fontweight': 'bold',
+                           'fontsize': 14}, pad = 0)
+plt.show()
 
 # clean 'year' column and plot
 # fn = lambda y: re.split(r'[.-]', y)[0]
@@ -78,6 +78,7 @@ ax.legend(bbox_to_anchor = (1.2, 1))
 # df.year = pd.to_numeric(df.year, errors='coerce')
 
 df.year.hist(bins = 50)
+plt.show()
 
 # add column 'age' - current year is 2024
 df['age'] = 2024 - df['year']
@@ -126,10 +127,6 @@ pd.pivot_table(df, index='type', columns='fuel', values='price', aggfunc='mean')
 # check distribution of price
 df.hist('price')
 
-# check if we remove rows that have non-null values at least for 21 columns out of 23 columns, how many rows will remain
-df_temp = df.dropna(thresh=21, axis=0)
-df_temp.shape
-
 # check the outliers in odometer column
 df.boxplot('odometer')
 # remove outliers from odometer column using quantiles
@@ -139,41 +136,90 @@ df.boxplot('odometer')
 
 df.hist('odometer')
 
+# remove rows that have non-null values at least for 20 columns out of 23 columns
+df = df.dropna(thresh=20, axis=0)
+df.shape
+
 # change cylinders dtype from object to numeric
 df.cylinders.head()
 df.cylinders.value_counts()
 df.cylinders = df.cylinders.apply(lambda x: str(x).lower().replace('cylinders', '').strip())
 df.cylinders = pd.to_numeric(df.cylinders, errors='coerce')
 df.cylinders.dtype
-# fill null values with mean value for cylinders
+# fill null values with median value for cylinders
 df.cylinders.isnull().sum()
-df.cylinders = df.cylinders.fillna(df.cylinders.mean())
+df.cylinders = df.cylinders.fillna(df.cylinders.median())
 
-# fill null values with median value for years
-df.hist('year')
-df.year = df.year.fillna(df.year.median())
+# drop rows for columns with low percentage of null values
+df.isnull().sum() / df.shape[0]
+df = df.dropna(subset = ['year', 'manufacturer', 'model', 'fuel', 'title_status', 'transmission'])
 
+# check distribution of prices over states to decide whether 'state' column is useful or not
+state_price = df.groupby('state')[['price']].mean()
+plt.bar(state_price.index, state_price.values.reshape(len(state_price)))
+
+# drop useless columns
+df.drop_duplicates(inplace=True)
+df.drop(['id', 'county', 'url', 'region_url', 'region', 'state', 'size', 'image_url', 'lat', 'long', 'description'], axis=1, inplace=True)
+df.shape
 # make text in description into lower case
-df.description = df.description.apply(lambda x: str(x).lower())
-df.description.sample(10)
+# df.description = df.description.apply(lambda x: str(x).lower())
+# df.description.sample(10)
 
-df.paint_color.mode()
 
-df.paint_color.value_counts().plot(kind='bar')
+# impute missing data in categorical variables with NOT AVAILABLE
+# we want our model to know the absence of data in these rows
+df[['condition', 'VIN', 'drive', 'type', 'paint_color']] = \
+    df[['condition', 'VIN', 'drive', 'type', 'paint_color']].fillna('n\a')
+df.isnull().sum() / df.shape[0]
+df.head(10)
 
-# fill null values with mode for categorical data 
-def fill_nan_with_mode(dataframe, column_name):
-    return dataframe[column_name].fillna(dataframe[column_name].value_counts().index[0])
-cat_variables = ['fuel', 'manufacturer', 'title_status', 'transmission', 'model']
-for var in cat_variables:
-    df[var] = fill_nan_with_mode(df, var)
+# change VIN number to has_vin or no_vin 
+df['VIN'] = df['VIN'].apply(lambda x: 'has_vin' if x != 'n\a' else 'no_vin')
 
-# fill nan in lat and long variables
-df.long.hist(bins=50)
-df.lat.hist(bins=50)
-df.long = df.long.fillna(df.long.median())
-df.lat = df.lat.fillna(df.lat.mean())
-# fill na in age column with median
-df.age.hist()
-df.age = df.age.fillna(df.age.median())
+# correct 'posting_date' datatype
+df.posting_date.head(10)
+df.posting_date = pd.to_datetime(df.posting_date, utc=True)
+df.posting_date = df.posting_date.dt.date
+df.posting_date.head(10)
+
+# make all categorical variables lower case
+for col in ['manufacturer', 'model', 'condition', 'fuel', 'title_status', \
+            'transmission', 'drive', 'type', 'paint_color']:
+    df[col] = df[col].apply(lambda x: str(x).lower())
+    
+# check final data to use for modelling
+df.isnull().any()
+numeric = df._get_numeric_data()
+corrdata = numeric.corr()
+ax = sns.heatmap(
+    corrdata,
+    vmin=-1, vmax=1, center=0,
+    cmap=sns.diverging_palette(20, 220, n=200)
+)
+ax.set_xticklabels(
+    ax.get_xticklabels(),
+    rotation=45,
+    horizontalalignment='right'
+)
+plt.show()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
